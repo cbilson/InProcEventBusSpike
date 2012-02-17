@@ -79,7 +79,15 @@ namespace InProcServiceBusConsole
 
         private void _TimerCallback()
         {
-            _eventBus.Publish(new SomeMessage {SomeValue = "hello"});
+            try
+            {
+                _eventBus.Publish(new SomeMessage {SomeValue = "hello"});
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+            }
+
             _timer.Change(TimeSpan.FromMilliseconds(1000), TimeSpan.FromMilliseconds(1000));
         }
 
@@ -102,6 +110,7 @@ namespace InProcServiceBusConsole
         public void Consume(SomeMessage message)
         {
             Console.WriteLine("Got: {0}", message.SomeValue);
+            throw new Exception("error");
         }
 
         public void Start()

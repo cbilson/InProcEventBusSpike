@@ -33,30 +33,31 @@ namespace InProcServiceBusConsole
     public interface IEventBus
     {
         void Publish<T>(T message);
-        void AddConsumer(Type messageType, object consumer);
+        void AddConsumer<TMessage>(IConsume<TMessage> consumer);
     }
 
     public class EventBus : IEventBus
     {
-        private readonly Dictionary<Type, List<object>> _handlers = new Dictionary<Type, List<object>>();
+        private readonly Dictionary<Type, List<Action<object>>> _handlers = new Dictionary<Type, List<Action<object>>>();
 
-        public void AddConsumer(Type messageType, object consumer)
+        public void AddConsumer<TMessage>(IConsume<TMessage> consumer)
         {
+            var messageType = typeof (TMessage);
             if(!_handlers.ContainsKey(messageType))
-                _handlers.Add(messageType, new List<object>());
+                _handlers.Add(messageType, new List<Action<object>>());
 
-            var list = _handlers[messageType];
-            list.Add(consumer);
+            var list = _handlers[messageType] as List<Action<object>>;
+            list.Add(msg => consumer.Consume((TMessage)msg));
         }
 
-        public void Publish<T>(T message)
+        public void Publish<TMessage>(TMessage message)
         {
-            if (!_handlers.ContainsKey(typeof(T)))
+            if (!_handlers.ContainsKey(typeof(TMessage)))
                 return;
 
-            var list = _handlers[typeof (T)];
-            foreach (var consumer in list.Cast<IConsume<T>>())
-                consumer.Consume(message);
+            var list = _handlers[typeof (TMessage)] as List<Action<object>>;
+            foreach (var consumerAction in list)
+                consumerAction(message);
         }
     }
 
@@ -105,7 +106,7 @@ namespace InProcServiceBusConsole
 
         public void Start()
         {
-            _eventBus.AddConsumer(typeof(SomeMessage), this);
+            _eventBus.AddConsumer<SomeMessage>(this);
         }
 
         public void Stop()

@@ -18,10 +18,10 @@ namespace InProcServiceBusConsole
         {
             using (var container = new WindsorContainer())
             {
-                container.AddFacility<EventBusWireUpFacility>();
                 container.AddFacility<StartableFacility>(); // can register afterward
                 container.Register(
                     Component.For<Publisher>().ImplementedBy<Publisher>(), 
+                    Component.For<IEventBus>().ImplementedBy<EventBus>(),
                     Component.For<Subscriber>().ImplementedBy<Subscriber>());
 
                 Console.WriteLine("Press any key to stop");
@@ -30,26 +30,10 @@ namespace InProcServiceBusConsole
         }
     }
 
-    internal class EventBusWireUpFacility : IFacility
+    public interface IEventBus
     {
-        public void Init(IKernel kernel, IConfiguration facilityConfig)
-        {
-            var eventBus = new EventBus();
-            kernel.Register(Component.For<IEventBus>().Instance(eventBus));
-            kernel.ComponentCreated += (model, instance) =>
-                           {
-                               instance.GetType().GetInterfaces()
-                                   .Where(x => x.IsGenericType)
-                                   .Where(x => x.GetGenericTypeDefinition() == typeof(IConsume<>))
-                                   .Select(x => x.GetGenericArguments()[0])
-                                   .ToList()
-                                   .ForEach(x => eventBus.AddConsumer(x, instance));
-                           };
-        }
-
-        public void Terminate()
-        {
-        }
+        void Publish<T>(T message);
+        void AddConsumer(Type messageType, object consumer);
     }
 
     public class EventBus : IEventBus
@@ -104,13 +88,16 @@ namespace InProcServiceBusConsole
         }
     }
 
-    public interface IEventBus
-    {
-        void Publish<T>(T message);
-    }
 
     public class Subscriber : IConsume<SomeMessage>, IStartable
     {
+        private readonly IEventBus _eventBus;
+
+        public Subscriber(IEventBus eventBus)
+        {
+            _eventBus = eventBus;
+        }
+
         public void Consume(SomeMessage message)
         {
             Console.WriteLine("Got: {0}", message.SomeValue);
@@ -118,7 +105,7 @@ namespace InProcServiceBusConsole
 
         public void Start()
         {
-            
+            _eventBus.AddConsumer(typeof(SomeMessage), this);
         }
 
         public void Stop()
